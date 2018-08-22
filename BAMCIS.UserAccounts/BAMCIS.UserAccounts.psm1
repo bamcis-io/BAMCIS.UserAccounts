@@ -29,10 +29,76 @@ Function Get-UserProfiles {
 	Begin {}
 
 	Process {
-		Write-Output -InputObject (Get-WmiObject -Class Win32_UserProfile | Where-Object {$_.Special -eq $false} | Select-Object -ExpandProperty LocalPath)
+		Write-Output -InputObject (Get-CimInstance -Class Win32_UserProfile | Where-Object {$_.Special -eq $false} | Select-Object -ExpandProperty LocalPath)
 	}
 
 	End {		
+	}
+}
+
+Function Remove-UserProfile {
+	<#
+		.SYNOPSIS
+			Removes the specified user profile.
+
+		.DESCRIPTION
+			Removes the specified user profile via WMI.
+
+		.PARAMETER Name
+			The name of the user profile to delete.
+	
+		.EXAMPLE
+			Remove-UserProfile -Name john.smith -Force
+
+		.INPUTS
+			System.String
+
+		.OUTPUTS
+			None
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/22/2018
+	#>
+	[CmdletBinding(SupportsShouldProcess = $true)]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+		[System.String]$Name,
+
+		[Parameter()]
+		[Switch]$Force
+	)
+
+	Begin{}
+
+	Process {
+        #[PSTypeName("Microsoft.Management.Infrastructure.CimInstance#root/cimv2/Win32_UserProfile")]
+		[Microsoft.Management.Infrastructure.CimInstance[]]$Profiles = Get-CimInstance -ClassName Win32_UserProfile | Where-Object {$_.LocalPath -like "*$Name"}
+        
+        if ($Profiles -eq $null -or $Profiles.Length -eq 0)
+        {
+            throw New-Object -TypeName System.ArgumentException("No profiles matched the input $Name")
+        }
+        elseif ($Profiles.Length -gt 1) 
+        {
+            throw New-Object -TypeName System.ArgumentException("More than 1 profile matches the input $Name")
+        }
+        else
+        {
+            $ConfirmMessage = "You are about to delete profile $Name."
+			$WhatIfDescription = "Deleted profile $Name"
+			$ConfirmCaption = "Delete Profile"
+
+			if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
+            {
+                Write-Verbose -Message "Removing profile $Name : $($Profiles[0].LocalPath)"
+                $Profiles[0] | Remove-CimInstance
+            }
+        }       
+	}
+
+	End {
+
 	}
 }
 
